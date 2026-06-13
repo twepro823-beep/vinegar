@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 	"unsafe"
 
 	"codeberg.org/puregotk/puregotk/v4/glib"
@@ -30,6 +31,10 @@ func (pc *progressCounter) Write(p []byte) (int, error) {
 // if the returned HTTP status code is not http.StatusOK.
 var ErrBadStatus = errors.New("bad status")
 
+var client = &http.Client{
+	Timeout: 5 * time.Minute,
+}
+
 // DownloadProgress downloads the named url to the named file, using
 // df as the callback for progress. No retry will be checked here.
 func DownloadProgress(url, file string, pbar *gtk.ProgressBar) error {
@@ -39,7 +44,7 @@ func DownloadProgress(url, file string, pbar *gtk.ProgressBar) error {
 	}
 	defer out.Close()
 
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return err
 	}
@@ -55,7 +60,9 @@ func DownloadProgress(url, file string, pbar *gtk.ProgressBar) error {
 	}
 
 	var idlecb glib.SourceFunc = func(uintptr) bool {
-		pbar.SetFraction(float64(pc.current) / float64(pc.total))
+		if pc.total > 0 {
+			pbar.SetFraction(float64(pc.current) / float64(pc.total))
+		}
 		return pc.current != pc.total
 	}
 	glib.TimeoutAdd(16, &idlecb, uintptr(unsafe.Pointer(nil)))
@@ -99,7 +106,7 @@ func download(url, file string) error {
 	}
 	defer out.Close()
 
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return err
 	}
