@@ -101,6 +101,12 @@
                                   </object>
                                 </child>
                                 <child>
+                                  <object class="GtkButton" id="wine_detect">
+                                    <property name="icon-name">edit-find-symbolic</property>
+                                    <property name="valign">center</property>
+                                  </object>
+                                </child>
+                                <child>
                                   <object class="GtkButton" id="wine_revert">
                                     <property name="icon-name">edit-undo-symbolic</property>
                                     <property name="valign">center</property>

@@ -23,6 +23,7 @@ GO_LDFLAGS ?= -s -w -X main.LocaleDir="$(LOCALEPREFIX)"
 SOURCES != find . -type f -name "*.go" # for automatically re-building vinegar
 
 RESOURCE = internal/gutil/vinegar.gresource
+RESOURCE_SOURCES != find data -type f \( -name "*.ui" -o -name "*.xml" -o -name "*.svg" \)
 VKLAYER = layer/libVkLayer_VINEGAR_VinegarLayer.so
 
 TRANS   != find data/po -type f -name "*.po" -printf '%f\n'
@@ -33,7 +34,7 @@ all: vinegar $(VKLAYER)
 vinegar: $(SOURCES) $(RESOURCE)
 	$(GO) build $(GOFLAGS) -ldflags="$(GO_LDFLAGS)" ./cmd/vinegar
 
-$(RESOURCE): data/vinegar.gresource.xml
+$(RESOURCE): data/vinegar.gresource.xml $(RESOURCE_SOURCES)
 	glib-compile-resources --sourcedir=data --target=$(RESOURCE) $<
 
 $(VKLAYER): layer/vinegar_layer.cpp

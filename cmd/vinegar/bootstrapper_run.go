@@ -62,18 +62,25 @@ func (b *bootstrapper) execute(args ...string) error {
 	b.message(L("Launching Studio"), "cmd", cmd)
 
 	c := make(chan os.Signal, 1)
+	done := make(chan struct{})
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(c)
-	go func() {
-		s := <-c
+	defer func() {
 		signal.Stop(c)
+		close(done)
+	}()
+	go func() {
+		select {
+		case s := <-c:
+			signal.Stop(c)
 
-		slog.Warn("Received signal", "signal", s)
+			slog.Warn("Received signal", "signal", s)
 
-		// Only kill Roblox if it hasn't exited
-		if cmd.ProcessState == nil {
-			slog.Debug("Killing Roblox", "pid", cmd.Process.Pid)
-			cmd.Process.Kill()
+			// Only kill Roblox if it hasn't exited
+			if cmd.ProcessState == nil {
+				slog.Debug("Killing Roblox", "pid", cmd.Process.Pid)
+				cmd.Process.Kill()
+			}
+		case <-done:
 		}
 	}()
 

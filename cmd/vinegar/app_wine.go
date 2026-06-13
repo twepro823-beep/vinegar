@@ -13,6 +13,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/google/go-github/v80/github"
 	"github.com/sewnie/wine"
+	"github.com/vinegarhq/vinegar/internal/config"
 	"github.com/vinegarhq/vinegar/internal/dirs"
 	"github.com/vinegarhq/vinegar/internal/gutil"
 	"github.com/vinegarhq/vinegar/internal/logging"
@@ -28,10 +29,23 @@ func (a *app) prepareWine() (bool, error) {
 	a.boot.message(L("Setting up Wine"), "first-time", firstRun)
 
 	cmd := a.pfx.Wine("")
-	if string(a.cfg.Studio.WineRoot) == dirs.WinePath && cmd.Err != nil {
+	switch root := string(a.cfg.Studio.WineRoot); {
+	case root == dirs.WinePath && cmd.Err != nil:
 		if err := a.updateWine("Latest"); err != nil {
 			return false, fmt.Errorf("dl: %w", err)
 		}
+	case root == "":
+		resolved, candidate, err := config.ResolveWineRoot(root)
+		if err != nil {
+			return false, err
+		}
+		a.pfx.Root = resolved
+		slog.Info("Using auto-detected Wine", "name", candidate.Name, "root", candidate.Root, "binary", candidate.Binary)
+	case cmd.Err != nil:
+		if err := config.ValidateWineRoot(root); err != nil {
+			return false, fmt.Errorf("wine installation: %w", err)
+		}
+		return false, cmd.Err
 	}
 	if a.pfx.Running() {
 		return false, nil
@@ -160,7 +174,10 @@ install:
 
 // Implements io.Writer for reading the log from Wine
 func (a *app) Write(b []byte) (int, error) {
-	for line := range strings.SplitSeq(string(b[:len(b)-1]), "\n") {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	for line := range strings.SplitSeq(strings.TrimSuffix(string(b), "\n"), "\n") {
 		// On older versions of Roblox, the channel used to be 'debugstr'.
 		// XXXX:warn:seh:OutputDebugStringA "2026-04-27T14:57:01.636Z ... [FLog::Foo] Message"
 		if a.boot != nil && len(line) >= 14 && line[10:13] == "seh" {

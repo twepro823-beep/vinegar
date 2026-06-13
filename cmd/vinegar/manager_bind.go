@@ -66,9 +66,9 @@ func (m *manager) connectElements() {
 	})
 
 	wine := gutil.GetObject[adw.ActionRow](b, "wine_row")
-	wine.SetSubtitle(cfg.WineRoot)
+	wine.SetSubtitle(displayWineRoot(cfg.WineRoot))
 	signalSave(&wine.Widget, "notify::subtitle", func() {
-		cfg.WineRoot = wine.GetSubtitle()
+		cfg.WineRoot = wineRootFromSubtitle(wine.GetSubtitle())
 	})
 	gutil.ConnectBuilderSimple(b, "wine_revert", "clicked", func() {
 		if cfg.WineRoot != "" {
@@ -76,7 +76,25 @@ func (m *manager) connectElements() {
 		} else {
 			cfg.WineRoot = dirs.WinePath
 		}
-		wine.SetSubtitle(cfg.WineRoot)
+		wine.SetSubtitle(displayWineRoot(cfg.WineRoot))
+	})
+	gutil.ConnectBuilderSimple(b, "wine_detect", "clicked", func() {
+		candidates := config.DetectWineInstallations()
+		if len(candidates) == 0 {
+			m.showToast("No Wine installations found")
+			return
+		}
+
+		next := candidates[0]
+		for i, candidate := range candidates {
+			if candidate.Root == cfg.WineRoot && i+1 < len(candidates) {
+				next = candidates[i+1]
+				break
+			}
+		}
+		cfg.WineRoot = next.Root
+		wine.SetSubtitle(displayWineRoot(cfg.WineRoot))
+		m.showToast(fmt.Sprintf("Selected Wine: %s", next.Name))
 	})
 	gutil.ConnectBuilderSimple(b, "wine_select", "clicked", func() {
 		dialog := gtk.NewFileDialog()
@@ -87,7 +105,7 @@ func (m *manager) connectElements() {
 				slog.Error("FileDialog error", "err", err)
 				return
 			}
-			wine.SetSubtitle(f.GetPath())
+			wine.SetSubtitle(displayWineRoot(f.GetPath()))
 		}
 		win := gtk.WindowNewFromInternalPtr(wine.GetRoot().Ptr)
 		dialog.SelectFolder(win, nil, &ready, 0)
@@ -207,6 +225,20 @@ func (m *manager) connectElements() {
 
 	simpleEntry("version_row", &cfg.ForcedVersion)
 	simpleEntry("channel_row", &cfg.Channel)
+}
+
+func displayWineRoot(root string) string {
+	if root == "" {
+		return "System Wine (auto-detected)"
+	}
+	return root
+}
+
+func wineRootFromSubtitle(subtitle string) string {
+	if subtitle == displayWineRoot("") {
+		return ""
+	}
+	return subtitle
 }
 
 // addKeyRow makes a new custom widget that represents the key value
